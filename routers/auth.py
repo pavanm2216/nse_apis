@@ -1,10 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from datetime import datetime, timedelta, timezone
 import httpx
 import logging
 
-from jose import jwt
-from auth.nse_auth import get_auth_headers
+from auth.nse_auth import get_auth_headers, get_nse_token
 from config import settings
 from http_client import get_nse_client
 from schemas.auth import LoginRequest, LoginResponse
@@ -24,18 +22,9 @@ PROBE_PAYLOAD = {
 }
 
 
-def _create_token(username: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
-    return jwt.encode(
-        {"sub": username, "exp": expire},
-        settings.JWT_SECRET,
-        algorithm="HS256"
-    )
-
-
 @router.post("/login", response_model=LoginResponse)
 async def nse_login(payload: LoginRequest):
-    # Step 1: validate username and password
+    # Step 1: validate username and password against .env
     if payload.username != settings.APP_USERNAME or payload.password != settings.APP_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -64,12 +53,10 @@ async def nse_login(payload: LoginRequest):
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.text)
 
-    # Step 3: generate and return JWT token
-    token = _create_token(payload.username)
-
+    # Step 3: return the NSE Authorization token
     return LoginResponse(
         status="200",
         message="Authentication successful",
-        access_token=token,
-        token_type="bearer"
+        access_token=get_nse_token(),
+        token_type="BASIC"
     )
