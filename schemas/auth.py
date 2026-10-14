@@ -4,7 +4,6 @@ from typing import Optional
 
 class LoginRequest(BaseModel):
     username: str   # Member Desk Login User ID (e.g. ADMIN)
-    password: str   # Member Desk Login Password
 
 
 class LoginResponse(BaseModel):
