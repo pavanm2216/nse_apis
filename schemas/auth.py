@@ -3,7 +3,8 @@ from typing import Optional
 
 
 class LoginRequest(BaseModel):
-    username: str   # Member Desk Login User ID (e.g. ADMIN)
+    username: str
+    password: str
 
 
 class LoginResponse(BaseModel):

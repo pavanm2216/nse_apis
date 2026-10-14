@@ -24,8 +24,13 @@ PROBE_PAYLOAD = {
 
 @router.post("/login", response_model=LoginResponse)
 async def nse_login(payload: LoginRequest):
-    logger.info(f"NSE auth check — user: {payload.username}, member: {settings.NSE_MEMBER_ID}")
+    # Step 1: validate username and password against .env
+    if payload.username != settings.APP_USERNAME or payload.password != settings.APP_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    logger.info(f"Login successful for user: {payload.username}, verifying NSE connectivity...")
+
+    # Step 2: verify NSE credentials are working
     try:
         async with get_nse_client(30) as client:
             response = await client.post(
@@ -36,18 +41,14 @@ async def nse_login(payload: LoginRequest):
     except httpx.ConnectError as e:
         raise HTTPException(status_code=502, detail=f"Cannot connect to NSE: {e}")
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="NSE login request timed out")
+        raise HTTPException(status_code=504, detail="NSE connection timed out")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"NSE request failed: {e}")
 
     logger.info(f"NSE response status: {response.status_code}")
-    logger.info(f"NSE response body: {response.text[:500]}")
 
     if response.status_code == 403:
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid authorization header or IP Address not mapped with user."
-        )
+        raise HTTPException(status_code=403, detail="NSE authentication failed — check API credentials or IP whitelist")
 
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.text)

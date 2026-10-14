@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     NSE_BASE_URL: str = "https://nseinvestuat.nseindia.com"
     NSE_PROXY: str = ""
 
+    APP_USERNAME: str = ""
+    APP_PASSWORD: str = ""
+
     DB_USER: str
     DB_PASSWORD: str
     DB_HOST: str
