@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     APP_USERNAME: str = ""
     APP_PASSWORD: str = ""
+    JWT_SECRET: str = "changeme"
+    JWT_EXPIRE_MINUTES: int = 60
 
     DB_USER: str
     DB_PASSWORD: str
