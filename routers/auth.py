@@ -35,7 +35,7 @@ async def nse_login(payload: LoginRequest):
     )
 
 
-@router.get("/debug/outbound-ip", tags=["Auth"])
+@router.get("/debug/outbound-ip", tags=["Auth"], include_in_schema=False)
 async def debug_outbound_ip():
     """
     Safe diagnostic endpoint — checks what IP NSE sees from this server.

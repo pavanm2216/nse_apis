@@ -261,7 +261,7 @@ class TestOrderEntry403:
             with TestClient(_make_order_app(), raise_server_exceptions=False) as client:
                 resp = client.post("/api/v1/order/entry", json=_valid_order_payload())
                 assert resp.status_code == 403
-                assert "NSE authentication failed" in resp.json()["detail"]
+                assert "NSE 403" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +283,7 @@ class TestUCCRegistration403:
                     "reg_details": [{"client_code": "K0281", "primary_holder_first_name": "Test"}]
                 })
                 assert resp.status_code == 403
-                assert "NSE authentication failed" in resp.json()["detail"]
+                assert "NSE 403" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
