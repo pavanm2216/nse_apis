@@ -9,7 +9,7 @@ import asyncio
 from auth.nse_auth import get_auth_headers
 from config import settings
 
-BASE = "http://127.0.0.1:8000/api/v1"
+BASE = "http://165.22.218.229:8000/api/v1"
 TIMEOUT = 30
 
 # ---------------------------------------------------------------------------

@@ -15,4 +15,6 @@ class STPCancellationRequest(BaseModel):
 
 
 class STPCancellationResponse(BaseModel):
-    reg_data: List[STPCancellationDetail]
+    reg_data: Optional[List[STPCancellationDetail]] = None
+
+    model_config = {"extra": "allow"}

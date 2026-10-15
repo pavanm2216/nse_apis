@@ -1,62 +1,68 @@
 from fastapi import APIRouter, HTTPException
-import httpx
 import logging
+import httpx
+from datetime import datetime, timezone, timedelta
+from jose import jwt
 
-from auth.nse_auth import get_auth_headers, get_nse_token
+from auth.nse_auth import get_auth_headers
 from config import settings
-from http_client import get_nse_client
 from schemas.auth import LoginRequest, LoginResponse
+from http_client import get_nse_client
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-NSE_AUTH_PROBE_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/reports/ORDER_STATUS"
-
-PROBE_PAYLOAD = {
-    "from_date": "01/01/2099",
-    "to_date": "01/01/2099",
-    "trans_type": "",
-    "order_type": "",
-    "sub_order_type": "",
-}
-
 
 @router.post("/login", response_model=LoginResponse)
 async def nse_login(payload: LoginRequest):
-    # Step 1: validate username and password against .env
     if payload.username != settings.APP_USERNAME or payload.password != settings.APP_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    logger.info(f"Login successful for user: {payload.username}, verifying NSE connectivity...")
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    token = jwt.encode(
+        {"sub": payload.username, "exp": expire},
+        settings.JWT_SECRET,
+        algorithm="HS256",
+    )
 
-    # Step 2: verify NSE credentials are working
-    try:
-        async with get_nse_client(30) as client:
-            response = await client.post(
-                NSE_AUTH_PROBE_URL,
-                headers=get_auth_headers(),
-                json=PROBE_PAYLOAD
-            )
-    except httpx.ConnectError as e:
-        raise HTTPException(status_code=502, detail=f"Cannot connect to NSE: {e}")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="NSE connection timed out")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"NSE request failed: {e}")
-
-    logger.info(f"NSE response status: {response.status_code}")
-
-    if response.status_code == 403:
-        raise HTTPException(status_code=403, detail="NSE authentication failed — check API credentials or IP whitelist")
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-
-    # Step 3: return the NSE Authorization token
+    logger.info(f"Login successful for user: {payload.username}")
     return LoginResponse(
         status="200",
         message="Authentication successful",
-        access_token=get_nse_token(),
-        token_type="BASIC"
+        access_token=token,
+        token_type="Bearer",
     )
+
+
+@router.get("/debug/outbound-ip", tags=["Auth"])
+async def debug_outbound_ip():
+    """
+    Safe diagnostic endpoint — checks what IP NSE sees from this server.
+    Calls a public IP echo service through the same HTTP client used for NSE.
+    Never logs or returns credentials.
+    """
+    headers = get_auth_headers()
+    auth_scheme = headers.get("Authorization", "").split(" ")[0]
+    member_id_present = "memberId" in headers
+
+    try:
+        async with get_nse_client(10) as client:
+            ip_response = await client.get("https://api.ipify.org?format=json")
+            outbound_ip = ip_response.json().get("ip", "unknown")
+    except Exception as e:
+        outbound_ip = f"error: {e}"
+
+    logger.info(f"[debug] auth_scheme={auth_scheme} memberId_present={member_id_present} outbound_ip={outbound_ip}")
+    logger.info(f"[debug] NSE_BASE_URL={settings.NSE_BASE_URL} NSE_PROXY={'set' if settings.NSE_PROXY else 'NOT SET'}")
+    logger.info(f"[debug] NSE_LOGIN_USER_ID={settings.NSE_LOGIN_USER_ID} NSE_MEMBER_ID={settings.NSE_MEMBER_ID}")
+
+    return {
+        "outbound_ip": outbound_ip,
+        "auth_scheme": auth_scheme,
+        "member_id_present": member_id_present,
+        "nse_base_url": settings.NSE_BASE_URL,
+        "proxy_configured": bool(settings.NSE_PROXY),
+        "nse_login_user_id": settings.NSE_LOGIN_USER_ID,
+        "nse_member_id": settings.NSE_MEMBER_ID,
+    }

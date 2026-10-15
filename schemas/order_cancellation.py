@@ -15,4 +15,6 @@ class OrderCancellationRequest(BaseModel):
 
 
 class OrderCancellationResponse(BaseModel):
-    reg_data: List[OrderCancellationDetail]
+    reg_data: Optional[List[OrderCancellationDetail]] = None
+
+    model_config = {"extra": "allow"}

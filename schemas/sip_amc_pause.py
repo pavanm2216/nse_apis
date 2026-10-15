@@ -27,11 +27,11 @@ class SIPAmcPauseResponse(BaseModel):
 
 
 class SIPAmcPauseReportRequest(BaseModel):
-    from_date: Optional[str] = None
-    to_date: Optional[str] = None
+    from_date: Optional[str] = None   # DD/MM/YYYY
+    to_date: Optional[str] = None     # DD/MM/YYYY, max 7 days gap
     client_code: Optional[str] = None
     registration_no: Optional[str] = None
-    modification_type: Optional[str] = None
+    modification_type: Optional[str] = None  # PAUSE, UNPAUSE
     request_id: Optional[str] = None
 
 

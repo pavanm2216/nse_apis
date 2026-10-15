@@ -22,7 +22,12 @@ async def cancel_order(payload: OrderCancellationRequest, db: AsyncSession = Dep
     if len(payload.can_data) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 orders allowed per request")
 
-    nse_payload = {"can_data": [d.model_dump() for d in payload.can_data]}
+    nse_payload = {
+        "can_data": [
+            {k: v for k, v in d.model_dump(exclude_none=True).items() if v != ""}
+            for d in payload.can_data
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_ORDER_CAN_URL}")
 

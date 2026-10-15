@@ -197,4 +197,8 @@ class UCCRegistrationRequest(BaseModel):
 
 
 class UCCRegistrationResponse(BaseModel):
-    reg_details: List[UCCDetail]
+    reg_details: Optional[List[UCCDetail]] = None
+    response_status: Optional[str] = None
+    error_remark: Optional[str] = None
+
+    model_config = {"extra": "allow"}

@@ -34,4 +34,6 @@ class SWPRegistrationRequest(BaseModel):
 
 
 class SWPRegistrationResponse(BaseModel):
-    reg_data: List[SWPDetail]
+    reg_data: Optional[List[SWPDetail]] = None
+
+    model_config = {"extra": "allow"}

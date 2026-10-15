@@ -306,7 +306,7 @@ class NFTCOBRequest(BaseModel):
 
     def to_nse_payload(self) -> dict:
         return {
-            "nft_ change of broker_details": [
+            "nft_change of broker_details": [
                 item.model_dump(exclude_none=True)
                 for item in self.nft_change_of_broker_details
             ]

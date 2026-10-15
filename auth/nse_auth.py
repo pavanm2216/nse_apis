@@ -19,8 +19,8 @@ def _build_encrypted_password(api_secret: str, license_key: str) -> str:
     random_number = secrets.randbelow(89999999999) + 10000000000    # 11-digit number
 
     plain_text = f"{api_secret}|{random_number}"
-    key      = license_key[:16].encode("utf-8").ljust(16, b'\0')  # AES-128 = exactly 16 bytes, pad if shorter
-    iv_bytes = iv[:16].encode("utf-8")            # first 16 chars of iv as bytes
+    key      = bytes.fromhex(license_key)   # 32-char hex → 16 bytes for AES-128
+    iv_bytes = bytes.fromhex(iv)            # 32-char hex → 16 bytes for AES IV
 
     cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
     aes_encrypted_val = base64.b64encode(
@@ -50,7 +50,7 @@ def _build_headers(user_id: str, api_secret: str, license_key: str, member_id: s
         "memberId":       str(member_id),
         "Authorization":  f"BASIC {authorization}",
         "User-Agent":     "PostmanRuntime/7.43.0",
-        "Accept":         "",
+        "Accept":         "*/*",
         "Accept-Language": "en-US,en;q=0.9",
         "Connection":     "keep-alive",
     }

@@ -35,4 +35,6 @@ class STPRegistrationRequest(BaseModel):
 
 
 class STPRegistrationResponse(BaseModel):
-    reg_data: List[STPDetail]
+    reg_data: Optional[List[STPDetail]] = None
+
+    model_config = {"extra": "allow"}

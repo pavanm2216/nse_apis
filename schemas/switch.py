@@ -36,4 +36,6 @@ class SwitchEntryRequest(BaseModel):
 
 
 class SwitchEntryResponse(BaseModel):
-    transaction_details: List[SwitchDetail]
+    transaction_details: Optional[List[SwitchDetail]] = None
+
+    model_config = {"extra": "allow"}

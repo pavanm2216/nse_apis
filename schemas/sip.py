@@ -53,4 +53,6 @@ class SIPRegistrationRequest(BaseModel):
 
 
 class SIPRegistrationResponse(BaseModel):
-    reg_data: List[SIPDetail]
+    reg_data: Optional[List[SIPDetail]] = None
+
+    model_config = {"extra": "allow"}

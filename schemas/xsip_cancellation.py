@@ -15,4 +15,6 @@ class XSIPCancellationRequest(BaseModel):
 
 
 class XSIPCancellationResponse(BaseModel):
-    reg_data: List[XSIPCancellationDetail]
+    reg_data: Optional[List[XSIPCancellationDetail]] = None
+
+    model_config = {"extra": "allow"}

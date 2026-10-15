@@ -1,15 +1,18 @@
 import asyncio
 import asyncpg
+from config import settings
+
 
 async def test():
     conn = await asyncpg.connect(
-        user="dbadmin",
-        password="MwUJ2C8ny@MGCnYR",
-        host="public-primary-pg-inbangalore-189799-1664910.db.onutho.com",
-        port=5432,
-        database="LV_NSE"
+        user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+        host=settings.DB_HOST,
+        port=settings.DB_PORT,
+        database=settings.DB_NAME,
     )
     print("DB Connected!")
     await conn.close()
+
 
 asyncio.run(test())

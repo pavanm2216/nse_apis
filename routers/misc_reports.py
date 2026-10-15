@@ -237,10 +237,40 @@ async def swp_inst_due_report(payload: SWPInstDueReportRequest):
     return await _fetch_report(NSE_SWP_INST_DUE_REPORT_URL, payload.model_dump(exclude_none=True))
 
 
-@router.post("/master-download", response_model=GenericReportResponse)
+@router.post("/master-download")
 async def master_download(payload: MasterDownloadRequest):
     logger.info(f"Sending to NSE URL: {NSE_MASTER_DOWNLOAD_URL}")
-    return await _fetch_report(NSE_MASTER_DOWNLOAD_URL, payload.model_dump())
+    try:
+        async with get_nse_client(120) as client:
+            response = await client.post(
+                NSE_MASTER_DOWNLOAD_URL,
+                headers=get_auth_headers(),
+                json=payload.model_dump()
+            )
+    except httpx.ConnectError as e:
+        raise HTTPException(status_code=502, detail=f"Cannot connect to NSE: {e}")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="NSE request timed out")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"NSE request failed: {e}")
+
+    logger.info(f"NSE Response status: {response.status_code}")
+
+    if response.status_code == 403:
+        raise HTTPException(status_code=403, detail="NSE authentication failed")
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type:
+        return response.json()
+
+    from fastapi.responses import Response
+    return Response(
+        content=response.content,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={payload.file_type}.txt"}
+    )
 
 
 @router.post("/client-kyc", response_model=GenericReportResponse)

@@ -9,8 +9,8 @@ class SIPUMRNMappingRequest(BaseModel):
 
 
 class SIPUMRNMappingResponse(BaseModel):
-    sip_reg_id: str
-    umrn: str
+    sip_reg_id: Optional[str] = None
+    umrn: Optional[str] = None
     remark: Optional[str] = None
     status: Optional[str] = None
     message: Optional[str] = None

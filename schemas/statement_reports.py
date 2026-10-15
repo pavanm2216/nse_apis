@@ -30,7 +30,7 @@ class AllotmentStatementRequest(BaseModel):
 
 
 class StatementReportResponse(BaseModel):
-    response_status: str
-    report_data_total: str
+    response_status: Optional[str] = None
+    report_data_total: Optional[Any] = None
     report_data: Optional[List[Any]] = None
     error_remark: Optional[str] = None

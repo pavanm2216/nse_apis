@@ -22,7 +22,12 @@ async def switch_entry(payload: SwitchEntryRequest, db: AsyncSession = Depends(g
     if len(payload.transaction_details) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 orders allowed per request")
 
-    nse_payload = {"transaction_details": [d.model_dump() for d in payload.transaction_details]}
+    nse_payload = {
+        "transaction_details": [
+            {k: v for k, v in d.model_dump(exclude_none=True).items() if v != ""}
+            for d in payload.transaction_details
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_SWITCH_URL}")
 

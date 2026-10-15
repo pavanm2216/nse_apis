@@ -16,4 +16,6 @@ class DailyXSIPCancellationRequest(BaseModel):
 
 
 class DailyXSIPCancellationResponse(BaseModel):
-    reg_data: List[DailyXSIPCancellationDetail]
+    reg_data: Optional[List[DailyXSIPCancellationDetail]] = None
+
+    model_config = {"extra": "allow"}

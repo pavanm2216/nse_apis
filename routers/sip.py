@@ -22,7 +22,12 @@ async def sip_register(payload: SIPRegistrationRequest, db: AsyncSession = Depen
     if len(payload.reg_data) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 orders allowed per request")
 
-    nse_payload = {"reg_data": [d.model_dump() for d in payload.reg_data]}
+    nse_payload = {
+        "reg_data": [
+            {k: v for k, v in d.model_dump(exclude_none=True).items() if v != ""}
+            for d in payload.reg_data
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_SIP_URL}")
 

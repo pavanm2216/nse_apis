@@ -25,7 +25,12 @@ async def fatca_common_upload(payload: FATCACommonUploadRequest, db: AsyncSessio
     if len(payload.reg_details) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 FATCA records allowed per request")
 
-    nse_payload = {"reg_details": [d.model_dump() for d in payload.reg_details]}
+    nse_payload = {
+        "reg_details": [
+            {k: v for k, v in d.model_dump(exclude_none=True).items() if v != ""}
+            for d in payload.reg_details
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_FATCA_COMMON_URL}")
 

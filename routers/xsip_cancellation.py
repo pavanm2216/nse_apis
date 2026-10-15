@@ -22,7 +22,12 @@ async def cancel_xsip(payload: XSIPCancellationRequest, db: AsyncSession = Depen
     if len(payload.can_data) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 XSIPs allowed per request")
 
-    nse_payload = {"can_data": [d.model_dump() for d in payload.can_data]}
+    nse_payload = {
+        "can_data": [
+            {k: v for k, v in d.model_dump(exclude_none=True).items() if v != ""}
+            for d in payload.can_data
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_XSIP_CAN_URL}")
 

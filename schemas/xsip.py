@@ -51,4 +51,6 @@ class XSIPRegistrationRequest(BaseModel):
 
 
 class XSIPRegistrationResponse(BaseModel):
-    reg_data: List[XSIPDetail]
+    reg_data: Optional[List[XSIPDetail]] = None
+
+    model_config = {"extra": "allow"}

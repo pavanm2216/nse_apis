@@ -1,4 +1,5 @@
 .env
+test_db.py
 __pycache__/
 *.py[cod]
 *.pyo

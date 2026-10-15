@@ -15,4 +15,6 @@ class SIPCancellationRequest(BaseModel):
 
 
 class SIPCancellationResponse(BaseModel):
-    reg_data: List[SIPCancellationDetail]
+    reg_data: Optional[List[SIPCancellationDetail]] = None
+
+    model_config = {"extra": "allow"}

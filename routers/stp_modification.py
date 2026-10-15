@@ -22,7 +22,12 @@ async def stp_modify(payload: STPModificationRequest, db: AsyncSession = Depends
     if len(payload.mod_data) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 modifications allowed per request")
 
-    nse_payload = {"mod_data": [d.model_dump(exclude={"status", "status_remarks"}) for d in payload.mod_data]}
+    nse_payload = {
+        "mod_data": [
+            {k: v for k, v in d.model_dump(exclude_none=True, exclude={"status", "status_remarks"}).items() if v != ""}
+            for d in payload.mod_data
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_STP_MOD_URL}")
 

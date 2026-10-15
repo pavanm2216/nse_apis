@@ -22,7 +22,12 @@ async def utr_update(payload: UTRUpdateRequest, db: AsyncSession = Depends(get_d
     if len(payload.utr_details) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 records allowed per request")
 
-    nse_payload = {"utr_details": [d.model_dump() for d in payload.utr_details]}
+    nse_payload = {
+        "utr_details": [
+            {k: v for k, v in d.model_dump(exclude_none=True).items() if v != ""}
+            for d in payload.utr_details
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_UTR_URL}")
 

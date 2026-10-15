@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import httpx
@@ -9,6 +9,7 @@ from database import get_db
 from auth.nse_auth import get_auth_headers
 from config import settings
 from models.ucc import UCCRegistration
+from schemas.ucc import UCCRegistrationRequest, UCCRegistrationResponse
 
 logger = logging.getLogger(__name__)
 
@@ -17,22 +18,17 @@ router = APIRouter(prefix="/ucc", tags=["UCC Registration"])
 NSE_UCC_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/registration/CLIENTCOMMON"
 
 
-@router.post("/register")
-async def register_ucc(request: Request, db: AsyncSession = Depends(get_db)):
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {e}")
-
-    reg_details_raw = body.get("reg_details", [])
-
-    if len(reg_details_raw) > 50:
+@router.post("/register", response_model=UCCRegistrationResponse)
+async def register_ucc(payload: UCCRegistrationRequest, db: AsyncSession = Depends(get_db)):
+    if len(payload.reg_details) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 records allowed per request")
 
-    cleaned_details = [
-        {k.strip(): v for k, v in record.items()}
-        for record in reg_details_raw
-    ]
+    nse_payload = {
+        "reg_details": [
+            {k: v for k, v in r.model_dump(exclude_none=True).items() if v != ""}
+            for r in payload.reg_details
+        ]
+    }
 
     logger.info(f"Sending to NSE URL: {NSE_UCC_URL}")
 
@@ -41,7 +37,7 @@ async def register_ucc(request: Request, db: AsyncSession = Depends(get_db)):
             response = await client.post(
                 NSE_UCC_URL,
                 headers=get_auth_headers(),
-                json={"reg_details": cleaned_details}
+                json=nse_payload
             )
     except httpx.ConnectError as e:
         raise HTTPException(status_code=502, detail=f"Cannot connect to NSE: {e}")
@@ -54,7 +50,7 @@ async def register_ucc(request: Request, db: AsyncSession = Depends(get_db)):
     logger.info(f"NSE Response body: {response.text}")
 
     if response.status_code == 403:
-        raise HTTPException(status_code=403, detail="NSE authentication failed")
+        raise HTTPException(status_code=403, detail=f"NSE 403: {response.text}")
 
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.text)
@@ -99,4 +95,4 @@ async def register_ucc(request: Request, db: AsyncSession = Depends(get_db)):
         logger.error(f"DB error: {e}")
         raise HTTPException(status_code=500, detail=f"DB save failed: {e}")
 
-    return nse_response
+    return UCCRegistrationResponse(**nse_response)
