@@ -15,7 +15,7 @@ TIMEOUT = 30
 # ---------------------------------------------------------------------------
 # Shared test data — adjust client_code to a valid UAT UCC
 # ---------------------------------------------------------------------------
-CLIENT_CODE = "NDNTUCC76"
+CLIENT_CODE = "NSEIND001"
 TEST_PAN = "ABCDE1234F"
 TEST_SCHEME_CODE = "IOGP"   # Axis Credit Risk Fund Growth (seen in pause report sample)
 

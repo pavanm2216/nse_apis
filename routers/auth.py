@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 import logging
 import httpx
 from datetime import datetime, timezone, timedelta
 from jose import jwt
 
 from auth.nse_auth import get_auth_headers
+from auth.dependencies import require_auth
 from config import settings
 from schemas.auth import LoginRequest, LoginResponse
 from http_client import get_nse_client
@@ -35,7 +36,7 @@ async def nse_login(payload: LoginRequest):
     )
 
 
-@router.get("/debug/outbound-ip", tags=["Auth"], include_in_schema=False)
+@router.get("/debug/outbound-ip", tags=["Auth"], include_in_schema=False, dependencies=[Depends(require_auth)])
 async def debug_outbound_ip():
     """
     Safe diagnostic endpoint — checks what IP NSE sees from this server.

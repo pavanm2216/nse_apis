@@ -71,6 +71,10 @@ class FATCADetail(BaseModel):
     ubo_mobile: Optional[str] = None
     ubo_code: Optional[str] = None
     ubo_hol_pc: Optional[str] = None
+    ubo_categ: Optional[str] = None
+    ubo_pep_fl: Optional[str] = None
+    ubo_email: Optional[str] = None
+    ubo_smo_de: Optional[str] = None
     sdf_flag: Optional[str] = None
     ubo_df: Optional[str] = None
     aadhaar_rp: Optional[str] = None

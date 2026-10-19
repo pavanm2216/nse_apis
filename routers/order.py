@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import httpx
-from http_client import get_nse_client
+from http_client import get_nse_client, raise_for_nse_error, handle_nse_request_error
 import logging
 
 from database import get_db
 from auth.nse_auth import get_auth_headers
 from config import settings
 from models.order import OrderTransaction
-from schemas.order import OrderEntryRequest, OrderEntryResponse, OrderRequest
+from schemas.order import OrderEntryRequest, OrderEntryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -16,31 +17,16 @@ router = APIRouter(prefix="/order", tags=["Order Entry"])
 
 NSE_ORDER_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/transaction/NORMAL"
 
-# Map column name → max length for VARCHAR(n) columns that NSE may overflow
-_VARCHAR_LIMITS: dict[str, int] = {
-    "trxn_type":          1,
-    "demat_physical":     1,
-    "kyc_flag":           1,
-    "euin_declaration":   1,
-    "min_redemption_flag":1,
-    "dpc_flag":           1,
-    "all_units":          1,
-}
+_KNOWN_FIELDS = {c.name for c in OrderTransaction.__table__.columns} - {"id", "created_at", "updated_at"}
 
-
-def _check_oversized(record: dict) -> list[str]:
-    return [
-        f"{col}={record[col]!r} exceeds VARCHAR({limit})"
-        for col, limit in _VARCHAR_LIMITS.items()
-        if col in record and record[col] and len(str(record[col])) > limit
-    ]
+# NSE status values that indicate a successfully placed order
+_SUCCESS_STATUSES = {"NEW", "VALID"}
 
 
 @router.post("/entry", response_model=OrderEntryResponse)
 async def order_entry(payload: OrderEntryRequest, db: AsyncSession = Depends(get_db)):
     if not payload.transaction_details:
         raise HTTPException(status_code=422, detail="transaction_details cannot be empty")
-
     if len(payload.transaction_details) > 50:
         raise HTTPException(status_code=400, detail="Maximum 50 orders allowed per request")
 
@@ -51,7 +37,7 @@ async def order_entry(payload: OrderEntryRequest, db: AsyncSession = Depends(get
         ]
     }
 
-    logger.info(f"Sending to NSE URL: {NSE_ORDER_URL}")
+    logger.info("Sending %s order(s) to NSE", len(nse_payload["transaction_details"]))
 
     try:
         async with get_nse_client(60) as client:
@@ -60,56 +46,65 @@ async def order_entry(payload: OrderEntryRequest, db: AsyncSession = Depends(get
                 headers=get_auth_headers(),
                 json=nse_payload
             )
-    except httpx.ConnectError as e:
-        raise HTTPException(status_code=502, detail=f"Cannot connect to NSE: {e}")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="NSE request timed out")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"NSE request failed: {e}")
+        handle_nse_request_error(e)
 
-    logger.info(f"NSE Response status: {response.status_code}")
-    logger.info(f"NSE Response body: {response.text}")
+    logger.info("NSE order response status: %s", response.status_code)
 
-    if response.status_code == 403:
-        raise HTTPException(status_code=403, detail=f"NSE 403: {response.text}")
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
+    raise_for_nse_error(response)
 
     try:
         nse_response = response.json()
     except Exception:
-        raise HTTPException(status_code=502, detail=f"NSE returned invalid JSON: {response.text[:500]}")
+        raise HTTPException(status_code=502, detail=f"NSE returned invalid JSON: {response.text[:200]}")
 
     transaction_details = nse_response.get("transaction_details", [])
-
-    # Detect oversized values before attempting DB insert
-    oversized_errors: list[str] = []
-    for record in transaction_details:
-        oversized_errors.extend(_check_oversized(record))
-    if oversized_errors:
-        logger.error(f"NSE response contains oversized values: {oversized_errors}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"NSE response contains values exceeding column limits: {'; '.join(oversized_errors)}"
-        )
-
-    model_columns = {c.name for c in OrderTransaction.__table__.columns}
+    saved, failed = 0, []
 
     try:
         for record in transaction_details:
+            trxn_order_id = (record.get("trxn_order_id") or "").strip()
+            trxn_status = (record.get("trxn_status") or "").strip().upper()
+
+            if trxn_status not in _SUCCESS_STATUSES:
+                logger.warning("Order not saved — trxn_status=%s", trxn_status)
+                failed.append({"trxn_order_id": trxn_order_id, "trxn_status": trxn_status, "trxn_remark": record.get("trxn_remark")})
+                continue
+
             db_data = {
                 k: str(v).strip() if v is not None and str(v).strip() else None
                 for k, v in record.items()
-                if k in model_columns
+                if k in _KNOWN_FIELDS
             }
-            db.add(OrderTransaction(**db_data))
+
+            if not trxn_order_id:
+                logger.warning("Skipped DB insert — trxn_order_id missing")
+                continue
+
+            # Upsert: if NSE succeeded but DB commit failed on a prior attempt,
+            # a retry will update the existing row instead of duplicating it.
+            existing = await db.execute(
+                select(OrderTransaction).where(OrderTransaction.trxn_order_id == trxn_order_id)
+            )
+            existing_record = existing.scalar_one_or_none()
+
+            if existing_record:
+                for key, value in db_data.items():
+                    setattr(existing_record, key, value)
+                logger.info("Updated order record: trxn_order_id=<redacted>")
+            else:
+                db.add(OrderTransaction(**db_data))
+                saved += 1
+                logger.info("Inserted order record: trxn_order_id=<redacted>")
 
         await db.commit()
-        logger.info(f"Saved {len(transaction_details)} order(s) to DB")
+        logger.info("DB commit done. saved=%s failed=%s", saved, len(failed))
     except Exception as e:
         await db.rollback()
-        logger.error(f"DB error: {e}")
-        raise HTTPException(status_code=500, detail=f"DB save failed: {e}")
+        logger.error("DB error after NSE success: %s — NSE already accepted the order(s)", type(e).__name__)
+        raise HTTPException(
+            status_code=500,
+            detail="NSE accepted the order but DB save failed. Do not retry — check trxn_order_id with NSE order status API."
+        )
 
     return OrderEntryResponse(**nse_response)

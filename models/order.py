@@ -1,10 +1,11 @@
-from sqlalchemy import Column, String, Integer, Numeric, Text, DateTime
+from sqlalchemy import Column, String, Integer, Text, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from database import Base
 
 
 class OrderTransaction(Base):
     __tablename__ = "order_transactions"
+    __table_args__ = (UniqueConstraint("trxn_order_id", name="uq_order_trxn_order_id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_ref_number = Column(String(19))

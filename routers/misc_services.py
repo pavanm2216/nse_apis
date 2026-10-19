@@ -42,7 +42,7 @@ NSE_NFT_COM_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v1/NFT/COM"
 NSE_NFT_IMAGE_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/fileupload/NFTIMAGE"
 NSE_SIP_MOD_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/modification/product/SIP_MOD"
 NSE_XSIP_MOD_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/modification/product/XSIP_MOD"
-NSE_KYC_FRESH_REG_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/registration/KYC_FRESH_REGISTER"
+NSE_KYC_FRESH_REG_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v1/EKYC/EKYCREG"
 
 
 async def _post(url: str, payload: dict) -> dict:

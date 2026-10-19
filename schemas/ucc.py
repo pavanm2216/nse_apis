@@ -3,7 +3,7 @@ from typing import Optional, List, Any
 
 
 class UCCDetail(BaseModel):
-    model_config = {"populate_by_name": True, "extra": "allow"}
+    model_config = {"populate_by_name": True, "extra": "forbid"}
 
     client_code: Optional[str] = None
     primary_holder_first_name: Optional[str] = None
@@ -192,12 +192,17 @@ class UCCDetail(BaseModel):
         return values
 
 
+class UCCDetailResponse(UCCDetail):
+    """Same fields as UCCDetail but allows extra fields NSE may add in responses."""
+    model_config = {"populate_by_name": True, "extra": "allow"}
+
+
 class UCCRegistrationRequest(BaseModel):
     reg_details: List[UCCDetail]
 
 
 class UCCRegistrationResponse(BaseModel):
-    reg_details: Optional[List[UCCDetail]] = None
+    reg_details: Optional[List[UCCDetailResponse]] = None
     response_status: Optional[str] = None
     error_remark: Optional[str] = None
 

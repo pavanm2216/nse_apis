@@ -11,7 +11,7 @@ def _build_encrypted_password(api_secret: str, license_key: str) -> str:
       salt              = random 32-char hex  e.g. 9A1c74744b944d9bd34e7de3a964fb19
       iv                = random 32-char hex  e.g. 90E9c0485bc76e864e5aae05a34d356f
       plain_text        = api_secret|<random_number>
-      aes_encrypted_val = AES-128-CBC(key=license_key[:16], iv=iv[:16], plain_text)
+      aes_encrypted_val = AES-128-CBC(key=bytes.fromhex(license_key[:32]), iv=bytes.fromhex(iv), plain_text)
       Encrypted Password = base64(iv::salt::aes_encrypted_val)
     """
     salt = secrets.token_hex(16)                                    # 32-char hex

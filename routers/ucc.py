@@ -2,20 +2,23 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import httpx
-from http_client import get_nse_client
+from http_client import get_nse_client, raise_for_nse_error, handle_nse_request_error
 import logging
 
 from database import get_db
 from auth.nse_auth import get_auth_headers
 from config import settings
 from models.ucc import UCCRegistration
-from schemas.ucc import UCCRegistrationRequest, UCCRegistrationResponse
+from schemas.ucc import UCCRegistrationRequest, UCCRegistrationResponse, UCCDetail, UCCDetailResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ucc", tags=["UCC Registration"])
 
-NSE_UCC_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/registration/CLIENTCOMMON"
+NSE_UCC_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/registration/CLIENTCOMMON183"
+
+# Fields defined in UCCDetail schema — unknown keys (e.g. additionalProp1) are stripped
+_KNOWN_FIELDS = set(UCCDetail.model_fields.keys())
 
 
 @router.post("/register", response_model=UCCRegistrationResponse)
@@ -25,12 +28,12 @@ async def register_ucc(payload: UCCRegistrationRequest, db: AsyncSession = Depen
 
     nse_payload = {
         "reg_details": [
-            {k: v for k, v in r.model_dump(exclude_none=True).items() if v != ""}
+            {k: v for k, v in r.model_dump().items() if k in _KNOWN_FIELDS}
             for r in payload.reg_details
         ]
     }
 
-    logger.info(f"Sending to NSE URL: {NSE_UCC_URL}")
+    logger.info("Sending UCC registration to NSE: %s records", len(nse_payload["reg_details"]))
 
     try:
         async with get_nse_client(30) as client:
@@ -39,36 +42,33 @@ async def register_ucc(payload: UCCRegistrationRequest, db: AsyncSession = Depen
                 headers=get_auth_headers(),
                 json=nse_payload
             )
-    except httpx.ConnectError as e:
-        raise HTTPException(status_code=502, detail=f"Cannot connect to NSE: {e}")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="NSE request timed out")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"NSE request failed: {e}")
+        handle_nse_request_error(e)
 
-    logger.info(f"NSE Response status: {response.status_code}")
-    logger.info(f"NSE Response body: {response.text}")
+    logger.info("NSE UCC response status: %s", response.status_code)
 
-    if response.status_code == 403:
-        raise HTTPException(status_code=403, detail=f"NSE 403: {response.text}")
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
+    raise_for_nse_error(response)
 
     try:
         nse_response = response.json()
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"NSE returned invalid JSON: {response.text[:500]}")
+    except Exception:
+        raise HTTPException(status_code=502, detail=f"NSE returned invalid JSON: {response.text[:200]}")
 
     reg_details = nse_response.get("reg_details", [])
     model_columns = {c.name for c in UCCRegistration.__table__.columns}
 
-    saved_count = 0
+    success_statuses = {"REG_SUCCESS", "S"}
+    saved, failed = 0, []
+
     try:
         for record in reg_details:
             client_code = (record.get("client_code") or "").strip()
-            existing = await db.execute(select(UCCRegistration).where(UCCRegistration.client_code == client_code))
-            existing_record = existing.scalar_one_or_none()
+            reg_status = (record.get("reg_status") or "").strip().upper()
+
+            if reg_status not in success_statuses:
+                logger.warning("UCC record not saved — client_code=%s reg_status=%s", client_code, reg_status)
+                failed.append({"client_code": client_code, "reg_status": reg_status, "reg_remark": record.get("reg_remark")})
+                continue
 
             db_data = {
                 k: str(v).strip() if v is not None and str(v).strip() else None
@@ -76,23 +76,30 @@ async def register_ucc(payload: UCCRegistrationRequest, db: AsyncSession = Depen
                 if k in model_columns
             }
 
+            if not db_data.get("client_code"):
+                logger.warning("Skipped DB insert — client_code missing in NSE response record")
+                continue
+
+            existing = await db.execute(select(UCCRegistration).where(UCCRegistration.client_code == client_code))
+            existing_record = existing.scalar_one_or_none()
+
             if existing_record:
                 for key, value in db_data.items():
                     setattr(existing_record, key, value)
-                logger.info(f"Updated existing UCC record: {client_code}")
+                logger.info("Updated UCC record: client_code=<redacted>")
             else:
-                if db_data.get("client_code"):
-                    db.add(UCCRegistration(**db_data))
-                    saved_count += 1
-                    logger.info(f"Inserted new UCC record: {client_code}")
-                else:
-                    logger.warning("Skipped DB insert — client_code is empty in NSE response")
+                db.add(UCCRegistration(**db_data))
+                saved += 1
+                logger.info("Inserted UCC record: client_code=<redacted>")
 
         await db.commit()
-        logger.info(f"DB commit done. Records saved: {saved_count}")
+        logger.info("DB commit done. saved=%s failed=%s", saved, len(failed))
     except Exception as e:
         await db.rollback()
-        logger.error(f"DB error: {e}")
-        raise HTTPException(status_code=500, detail=f"DB save failed: {e}")
+        logger.error("DB error: %s", type(e).__name__)
+        raise HTTPException(status_code=500, detail="DB save failed")
 
-    return UCCRegistrationResponse(**nse_response)
+    result = UCCRegistrationResponse(**nse_response)
+    if failed:
+        logger.warning("UCC partial failure: %s records failed", len(failed))
+    return result

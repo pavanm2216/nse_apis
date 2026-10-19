@@ -5,6 +5,7 @@ from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
 from database import engine, Base
 from auth.dependencies import require_auth
+from config import settings
 import models.ucc
 import models.order
 import models.switch
@@ -35,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from http_client import check_proxy_reachable
+    check_proxy_reachable()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -48,7 +51,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()] or ["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,8 +60,8 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    logger.error("Unhandled exception: %s", type(exc).__name__, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 app.include_router(auth.router, prefix="/api/v1")
