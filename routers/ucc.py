@@ -19,6 +19,15 @@ NSE_UCC_URL = f"{settings.NSE_BASE_URL}/nsemfdesk/api/v2/registration/CLIENTCOMM
 
 # Fields defined in UCCDetail schema — unknown keys (e.g. additionalProp1) are stripped
 _KNOWN_FIELDS = set(UCCDetail.model_fields.keys())
+_INTEGER_FIELDS = {"nominee_1_applicable", "nominee_2_applicable", "nominee_3_applicable"}
+
+
+def _db_value(key, value):
+    if value is None or not str(value).strip():
+        return None
+    if key in _INTEGER_FIELDS:
+        return int(str(value).strip())
+    return str(value).strip()
 
 
 @router.post("/register", response_model=UCCRegistrationResponse)
@@ -71,7 +80,7 @@ async def register_ucc(payload: UCCRegistrationRequest, db: AsyncSession = Depen
                 continue
 
             db_data = {
-                k: str(v).strip() if v is not None and str(v).strip() else None
+                k: _db_value(k, v)
                 for k, v in record.items()
                 if k in model_columns
             }
