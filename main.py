@@ -65,6 +65,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="")  # also serves /auth/login for frontend compatibility
 app.include_router(ucc.router, prefix="/api/v1", dependencies=[Depends(require_auth)])
 app.include_router(order.router, prefix="/api/v1", dependencies=[Depends(require_auth)])
 app.include_router(switch.router, prefix="/api/v1", dependencies=[Depends(require_auth)])
