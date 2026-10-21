@@ -49,7 +49,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()] or ["*"]
+# Build allowed origins list — wildcard fallback if ALLOWED_ORIGINS is empty
+_raw_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+allowed_origins = _raw_origins if _raw_origins else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,22 +60,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=600,
 )
-
-
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(rest_of_path: str, request: Request):
-    origin = request.headers.get("origin", "*")
-    return JSONResponse(
-        content={},
-        headers={
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "600",
-        },
-    )
 
 
 @app.exception_handler(Exception)
