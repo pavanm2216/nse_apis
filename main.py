@@ -51,7 +51,13 @@ app = FastAPI(
 
 # Build allowed origins list — wildcard fallback if ALLOWED_ORIGINS is empty
 _raw_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
-allowed_origins = _raw_origins if _raw_origins else ["*"]
+allowed_origins = _raw_origins if _raw_origins else [
+    "https://nse.lendrixventech.com",
+    "https://lendrixventech.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8080",
+]
 
 app.add_middleware(
     CORSMiddleware,
